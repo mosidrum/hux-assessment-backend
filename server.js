@@ -66,6 +66,26 @@ app.post('/register', (req, res) => {
   });
 });
 
+const confirmUser = (req, res, next) => {
+  const token = req.cookies.token;
+  if(!token) {
+    return res.json({Error: 'You are not authenticated'})
+  } else {
+    jwt.verify(token, 'jwt-secret-key', (err, decoded) => {
+      if(err) {
+        return res.json({Error: 'Wrong token'});
+      } else {
+         req.name = decoded.name;
+         next();
+      }
+    })
+  }
+}
+
+app.get('/', confirmUser, (req, res) => {
+  return res.json({Status: 'Success', name: req.name});
+})
+
 
 app.post('/login', (req, res) => {
   const sql = 'SELECT * FROM login WHERE email = ?';
