@@ -23,30 +23,6 @@ const dbase = mysql.createConnection({
 })
 
 app.post('/register', (req, res) => {
-  if (!req.body.name) {
-    return res.json({ Error: "Name is required." });
-  }
-
-  if (!req.body.email) {
-    return res.json({ Error: "Email is required." });
-  }
-
-  if (!req.body.password) {
-    return res.json({ Error: "Password is required." });
-  }
-
-  const email = req.body.email;
-
-  const checkDuplicateEmailQuery = 'SELECT COUNT(*) AS count FROM login WHERE email = ?';
-  dbase.query(checkDuplicateEmailQuery, [email], (err, result) => {
-    if (err) return res.json({ Error: "Error checking duplicate email in the server." });
-
-    const emailCount = result[0].count;
-
-    if (emailCount > 0) {
-      return res.json({ Error: "Email is already registered." });
-    }
-
     const sql = 'INSERT INTO login (`name`,`email`,`password`) VALUES (?)';
 
     bcrypt.hash(req.body.password.toString(), salt, (err, hash) => {
@@ -60,11 +36,30 @@ app.post('/register', (req, res) => {
 
       dbase.query(sql, [values], (err, result) => {
         if(err) return res.json({ Error: "Inserting data error in server" });
-        return res.json({ Status: "Success" });
+        return res.json(result);
       });
     });
-  });
 });
+
+const confirmUser = (req, res, next) => {
+  const token = req.cookies.token;
+  if(!token) {
+    return res.json({Error: 'You are not authenticated'})
+  } else {
+    jwt.verify(token, 'jwt-secret-key', (err, decoded) => {
+      if(err) {
+        return res.json({Error: 'Wrong token'});
+      } else {
+         req.name = decoded.name;
+         next();
+      }
+    })
+  }
+}
+
+app.get('/', confirmUser, (req, res) => {
+  return res.json({Status: 'Success', name: req.name});
+})
 
 
 app.post('/login', (req, res) => {
@@ -80,6 +75,7 @@ app.post('/login', (req, res) => {
           const name = data[0].name;
           const token = jwt.sign({name}, "jwt-secret-key", {expiresIn: '1d'})
           res.cookie('token', token);
+          res.cookie('user', name);
           return res.json({Status: "Success"});
         } else {
           return res.json({Error: "Password not matched"});
@@ -89,6 +85,11 @@ app.post('/login', (req, res) => {
       return res.json({Error: 'email does not exists'});
     }
   })
+})
+
+app.get('/logout', (req, res) => {
+  res.clearCookie('token');
+  return res.json({Status: 'Success'});
 })
 
 app.listen(8081, () => {
