@@ -10,8 +10,8 @@ const app = express();
 app.use(express.json());
 app.use(cors({
   origin: ["http://localhost:3000"],
-  methods: ["POST", "GET"],
-  credentials: true
+  methods: ["POST", "DELETE", "GET", "PUT"],
+  withCredentials: true
 }));
 app.use(cookieParser());
 
@@ -74,7 +74,7 @@ app.post('/login', (req, res) => {
   dbase1.query(sql, [req.body.email], (err, data) => {
     console.log('Received request with body:', req.body.email);
     console.log('Data from database:', data);
-    if (err) return res.json({Error: "Login error in server"});
+    if (err) return res.json({Error: 'An error occurred'});
     if (data.length > 0) {
       bcrypt.compare(req.body.password.toString(), data[0].password, (err, response) => {
         if (err) return res.json({Error: "Password compared error"});
@@ -94,9 +94,36 @@ app.post('/login', (req, res) => {
   })
 })
 
+app.get('/view/:id', (req, res) => {
+  const sql = 'SELECT * FROM contacts WHERE ID = ?';
+  const id = req.params.id;
+  dbase2.query(sql, [id], (err, result) => {
+    if(err) return res.json({Message: 'An Error occurred'});
+    return  res.json(result);
+  })
+})
+
+app.put('/edit/:id', (req, res) => {
+  const sql = 'UPDATE contacts SET `name`=?, `phone`=? WHERE ID=?';
+  const id = req.params.id;
+  dbase2.query(sql, [req.body.name, req.body.phone, id], (err, result) => {
+    if(err) return res.json({Message: 'An error occurred'});
+    return res.json(result);
+  })
+})
+
 app.get('/logout', (req, res) => {
   res.clearCookie('token');
   return res.json({Status: 'Success'});
+})
+
+app.delete('/delete/:id', (req, res) => {
+  const sql = 'DELETE FROM contacts WHERE ID = ?';
+  const id = req.params.id;
+  dbase2.query(sql, [id], (err, result) => {
+    if(err) return res.json({Message: "An Error occurred"});
+    return res.json(result);
+  })
 })
 
 app.listen(8081, () => {
