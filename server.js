@@ -10,16 +10,31 @@ const app = express();
 app.use(express.json());
 app.use(cors({
   origin: ["http://localhost:3000"],
-  methods: ["POST", "GET"],
+  methods: ["POST", "DELETE", "GET", "PUT"],
   credentials: true
 }));
 app.use(cookieParser());
 
-const dbase = mysql.createConnection({
+const dbase1 = mysql.createConnection({
   host: "localhost",
   user: "root",
   password: "",
   database: "signup"
+})
+
+const dbase2 = mysql.createConnection({
+  host: "localhost",
+  user: "root",
+  password: "",
+  database: "hux"
+})
+
+app.get('/', (req, res) => {
+  const sql = 'SELECT * FROM contacts';
+  dbase2.query(sql, (err, result) => {
+    if(err) return res.json({Message: 'Error in server'});
+    return  res.json(result);
+  })
 })
 
 app.post('/register', (req, res) => {
@@ -34,40 +49,32 @@ app.post('/register', (req, res) => {
         hash,
       ];
 
-      dbase.query(sql, [values], (err, result) => {
+      dbase1.query(sql, [values], (err, result) => {
         if(err) return res.json({ Error: "Inserting data error in server" });
         return res.json(result);
       });
     });
 });
 
-const confirmUser = (req, res, next) => {
-  const token = req.cookies.token;
-  if(!token) {
-    return res.json({Error: 'You are not authenticated'})
-  } else {
-    jwt.verify(token, 'jwt-secret-key', (err, decoded) => {
-      if(err) {
-        return res.json({Error: 'Wrong token'});
-      } else {
-         req.name = decoded.name;
-         next();
-      }
-    })
-  }
-}
-
-app.get('/', confirmUser, (req, res) => {
-  return res.json({Status: 'Success', name: req.name});
+app.post('/create', (req, res) => {
+  const sql = 'INSERT INTO contacts (`name`, `phone`) VALUES (?)';
+  const values = [
+    req.body.name,
+    req.body.phone,
+  ];
+  dbase2.query(sql, [values], (err, result) => {
+    if(err) return res.json({ Error: 'An error occurred inserting data'});
+    return res.json(result);
+  })
 })
 
 
 app.post('/login', (req, res) => {
   const sql = 'SELECT * FROM login WHERE email = ?';
-  dbase.query(sql, [req.body.email], (err, data) => {
+  dbase1.query(sql, [req.body.email], (err, data) => {
     console.log('Received request with body:', req.body.email);
     console.log('Data from database:', data);
-    if (err) return res.json({Error: "Login error in server"});
+    if (err) return res.json({Error: 'An error occurred'});
     if (data.length > 0) {
       bcrypt.compare(req.body.password.toString(), data[0].password, (err, response) => {
         if (err) return res.json({Error: "Password compared error"});
@@ -87,9 +94,36 @@ app.post('/login', (req, res) => {
   })
 })
 
+app.get('/view/:id', (req, res) => {
+  const sql = 'SELECT * FROM contacts WHERE ID = ?';
+  const id = req.params.id;
+  dbase2.query(sql, [id], (err, result) => {
+    if(err) return res.json({Message: 'An Error occurred'});
+    return  res.json(result);
+  })
+})
+
+app.put('/edit/:id', (req, res) => {
+  const sql = 'UPDATE contacts SET `name`=?, `phone`=? WHERE ID=?';
+  const id = req.params.id;
+  dbase2.query(sql, [req.body.name, req.body.phone, id], (err, result) => {
+    if(err) return res.json({Message: 'An error occurred'});
+    return res.json(result);
+  })
+})
+
 app.get('/logout', (req, res) => {
   res.clearCookie('token');
   return res.json({Status: 'Success'});
+})
+
+app.delete('/delete/:id', (req, res) => {
+  const sql = 'DELETE FROM contacts WHERE ID = ?';
+  const id = req.params.id;
+  dbase2.query(sql, [id], (err, result) => {
+    if(err) return res.json({Message: "An Error occurred"});
+    return res.json(result);
+  })
 })
 
 app.listen(8081, () => {
